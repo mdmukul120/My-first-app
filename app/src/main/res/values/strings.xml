@@ -1,0 +1,13 @@
+<resources>
+    <string name="app_name">Live Sports</string>
+    <string name="tab_live">Live</string>
+    <string name="tab_upcoming">Upcoming</string>
+    <string name="tab_ended">Ended</string>
+    <string name="tab_favorites">Favorites</string>
+    <string name="all_sports">All Sports</string>
+    <string name="search_matches">Search matches, teams, leagues...</string>
+    <string name="no_matches_found">No matches found</string>
+    <string name="watch_stream">Watch Stream</string>
+    <string name="available_streams">Available Streams</string>
+    <string name="match_details">Match Details</string>
+</resources>
