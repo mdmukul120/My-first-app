@@ -6,7 +6,7 @@ plugins {
   alias(libs.plugins.google.devtools.ksp)
   alias(libs.plugins.roborazzi)
   alias(libs.plugins.secrets)
-  alias(libs.plugins.google.services)
+  // alias(libs.plugins.google.services) // google-services.json অনুপস্থিত থাকলে এটি কমেন্ট করা থাকবে
 }
 
 android {
