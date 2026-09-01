@@ -1,0 +1,42 @@
+name: Android Build
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    # ১. রিপোজিটরি থেকে কোড চেকআউট
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    # ২. JDK 17 সেটআপ (আপনার প্রজেক্ট অনুযায়ী ভার্সন পরিবর্তন করতে পারেন)
+    - name: Set up JDK 17
+      uses: actions/min-java-version@v3
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+
+    # ৩. Gradle বিল্ড স্পিড বাড়াতে ক্যাশিং সেটআপ
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@v3
+
+    # ৪. gradlew ফাইলে Execute পারমিশন দেওয়া
+    - name: Make gradlew executable
+      run: chmod +x gradlew
+
+    # ৫. Debug APK বিল্ড করা
+    - name: Build Debug APK
+      run: ./gradlew assembleDebug
+
+    # ৬. তৈরি হওয়া APK ফাইলটি Artifact হিসেবে সেভ করা
+    - name: Upload Debug APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: app-debug
+        path: app/build/outputs/apk/debug/app-debug.apk
