@@ -11,26 +11,26 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    # ১. রিপোজিটরি থেকে কোড চেকআউট
+    # ১. কোড চেকআউট
     - name: Checkout code
       uses: actions/checkout@v4
 
-    # ২. JDK 17 সেটআপ (আপনার প্রজেক্ট অনুযায়ী ভার্সন পরিবর্তন করতে পারেন)
+    # ২. JDK 17 সেটআপ (সঠিক অ্যাকশন: actions/setup-java@v4)
     - name: Set up JDK 17
-      uses: actions/min-java-version@v3
+      uses: actions/setup-java@v4
       with:
         java-version: '17'
         distribution: 'temurin'
 
-    # ৩. Gradle বিল্ড স্পিড বাড়াতে ক্যাশিং সেটআপ
+    # ৩. Gradle ক্যাশিং ও সেটআপ
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@v3
 
-    # ৪. gradlew ফাইলে Execute পারমিশন দেওয়া
+    # ৪. gradlew ফাইলে পারমিশন দেওয়া
     - name: Make gradlew executable
       run: chmod +x gradlew
 
-    # ৫. Debug APK বিল্ড করা
+    # ৫. Debug APK বিল্ড
     - name: Build Debug APK
       run: ./gradlew assembleDebug
 
