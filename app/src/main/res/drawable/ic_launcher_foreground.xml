@@ -3,6 +3,6 @@
     <item
         android:width="66dp"
         android:height="66dp"
-        android:drawable="@drawable/ic_app_icon"
+        android:drawable="@drawable/mukul_sports_logo_1788310180221"
         android:gravity="center" />
 </layer-list>

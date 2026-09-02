@@ -1,6 +1,6 @@
 {
-  "name": "Live Sports",
-  "description": "Live and upcoming sports matches, schedules, live streams, and scores for Football, Cricket, Boxing, Motorsports, and more.",
+  "name": "Mukul Sports",
+  "description": "Live and upcoming sports matches, real-time countdown, Mukul Tapmad, Live TV channels, and match highlights replay with zero-link export native player.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

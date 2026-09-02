@@ -4,41 +4,34 @@ import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 
 @JsonClass(generateAdapter = true)
-data class SportsFeedResponse(
-    @Json(name = "name") val name: String? = null,
-    @Json(name = "owner") val owner: String? = null,
-    @Json(name = "telegram_channel") val telegramChannel: String? = null,
-    @Json(name = "last_update_time") val lastUpdateTime: String? = null,
-    @Json(name = "total_matches") val totalMatches: Int? = 0,
-    @Json(name = "live_match") val liveMatchesCount: Int? = 0,
-    @Json(name = "matches") val matches: List<MatchDto>? = emptyList()
+data class FirebaseEventDto(
+    @Json(name = "id") val id: String? = null,
+    @Json(name = "title") val title: String? = null,
+    @Json(name = "cat") val cat: String? = null,
+    @Json(name = "league_logo") val leagueLogo: String? = null,
+    @Json(name = "eventInfo") val eventInfo: FirebaseEventInfoDto? = null,
+    @Json(name = "channels_data") val channelsData: List<FirebaseChannelDto>? = emptyList()
 )
 
 @JsonClass(generateAdapter = true)
-data class MatchDto(
-    @Json(name = "status") val status: String? = null,
-    @Json(name = "Category") val category: String? = null,
-    @Json(name = "event_name") val eventName: String? = null,
-    @Json(name = "eventInfo") val eventInfo: EventInfoDto? = null,
-    @Json(name = "streams") val streams: List<StreamDto>? = emptyList()
-)
-
-@JsonClass(generateAdapter = true)
-data class EventInfoDto(
+data class FirebaseEventInfoDto(
+    @Json(name = "Status") val status: String? = null,
+    @Json(name = "eventName") val eventName: String? = null,
+    @Json(name = "startTime") val startTime: String? = null,
+    @Json(name = "endTime") val endTime: String? = null,
     @Json(name = "teamA") val teamA: String? = null,
     @Json(name = "teamB") val teamB: String? = null,
     @Json(name = "teamAFlag") val teamAFlag: String? = null,
     @Json(name = "teamBFlag") val teamBFlag: String? = null,
-    @Json(name = "eventName") val tournamentName: String? = null,
-    @Json(name = "event_logo") val tournamentLogo: String? = null,
-    @Json(name = "startTime") val startTime: String? = null
+    @Json(name = "isHot") val isHot: String? = null
 )
 
 @JsonClass(generateAdapter = true)
-data class StreamDto(
-    @Json(name = "channel_name") val channelName: String? = null,
-    @Json(name = "stream_url") val streamUrl: String? = null,
-    @Json(name = "drm_key") val drmKey: String? = null
+data class FirebaseChannelDto(
+    @Json(name = "title") val title: String? = null,
+    @Json(name = "link") val link: String? = null,
+    @Json(name = "source") val source: String? = null,
+    @Json(name = "tokenApi") val tokenApi: String? = null
 )
 
 enum class MatchStatus {
@@ -59,6 +52,7 @@ data class MatchItem(
     val teamBName: String,
     val teamBFlag: String,
     val startTimeRaw: String,
+    val startEpochMs: Long = 0L,
     val streams: List<StreamItem>,
     val isFavorite: Boolean = false
 )
@@ -67,6 +61,34 @@ data class StreamItem(
     val channelName: String,
     val fullUrl: String,
     val cleanUrl: String,
-    val headers: Map<String, String>,
+    val isIframeOrWeb: Boolean = false,
+    val headers: Map<String, String> = emptyMap(),
     val drmKey: String? = null
+)
+
+data class ChannelItem(
+    val id: String,
+    val title: String,
+    val category: String,
+    val logoUrl: String,
+    val streamUrl: String,
+    val isTapmad: Boolean = false,
+    val isFavorite: Boolean = false
+)
+
+data class HighlightItem(
+    val id: String,
+    val title: String,
+    val category: String,
+    val tournament: String,
+    val thumbnailUrl: String,
+    val dateString: String,
+    val servers: List<HighlightServer>,
+    val isFavorite: Boolean = false
+)
+
+data class HighlightServer(
+    val serverName: String,
+    val type: String, // "iframe", "direct", "mp4"
+    val streamUrl: String
 )

@@ -1,14 +1,19 @@
 package com.example.ui.components
 
-import android.content.ClipData
-import android.content.ClipboardManager
-import android.content.Context
+import android.annotation.SuppressLint
 import android.net.Uri
-import android.widget.MediaController
-import android.widget.Toast
-import android.widget.VideoView
+import android.view.ViewGroup
+import android.webkit.WebChromeClient
+import android.webkit.WebSettings
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import androidx.annotation.OptIn
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,15 +26,17 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AspectRatio
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.OpenInNew
+import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.LiveTv
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.VpnKey
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -61,23 +68,40 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import com.example.data.model.MatchItem
+import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackException
+import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.ui.AspectRatioFrameLayout
+import androidx.media3.ui.PlayerView
 import com.example.data.model.StreamItem
 import com.example.ui.theme.LiveRed
 import com.example.ui.theme.SportsCyan
-import com.example.ui.theme.SportsOrange
+import com.example.ui.theme.TrophyGold
 
+@SuppressLint("SetJavaScriptEnabled")
+@OptIn(UnstableApi::class)
 @Composable
 fun StreamPlayerDialog(
-    match: MatchItem,
-    stream: StreamItem,
+    title: String,
+    subtitle: String,
+    currentStream: StreamItem,
+    allStreams: List<StreamItem>,
+    onSelectStream: (StreamItem) -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    var isVideoLoading by remember { mutableStateOf(true) }
+    var isVideoBuffering by remember { mutableStateOf(true) }
     var hasError by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf("") }
     var reloadKey by remember { mutableStateOf(0) }
+    var forceWebEmbedMode by remember { mutableStateOf(false) }
+
+    val shouldUseWeb = currentStream.isIframeOrWeb || forceWebEmbedMode
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -100,37 +124,40 @@ fun StreamPlayerDialog(
                     .padding(16.dp),
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
-                // Top Player Header
+                // Top Header: Title, Subtitle, Close Button
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(8.dp)
-                                    .clip(CircleShape)
-                                    .background(LiveRed)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(10.dp)
+                                .clip(CircleShape)
+                                .background(LiveRed)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column {
                             Text(
-                                text = stream.channelName,
+                                text = title,
                                 color = Color.White,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 16.sp,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
+                            Text(
+                                text = subtitle,
+                                color = Color.White.copy(alpha = 0.7f),
+                                fontSize = 12.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
                         }
-                        Text(
-                            text = "${match.matchTitle} • ${match.tournamentName}",
-                            color = Color.White.copy(alpha = 0.7f),
-                            fontSize = 12.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
                     }
 
                     IconButton(
@@ -148,114 +175,269 @@ fun StreamPlayerDialog(
                     }
                 }
 
-                // Video Surface Box
+                // Video Cinema Surface (16:9 Aspect Ratio)
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .aspectRatio(16f / 9f)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Color(0xFF111827)),
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Color(0xFF0F172A)),
                     contentAlignment = Alignment.Center
                 ) {
                     if (!hasError) {
-                        key(reloadKey) {
-                            AndroidView(
-                                factory = { ctx ->
-                                    VideoView(ctx).apply {
-                                        val uri = Uri.parse(stream.cleanUrl)
-                                        if (stream.headers.isNotEmpty()) {
-                                            setVideoURI(uri, stream.headers)
-                                        } else {
-                                            setVideoURI(uri)
+                        key(currentStream.cleanUrl, reloadKey, shouldUseWeb) {
+                            if (shouldUseWeb) {
+                                // Enhanced HTML5 & Web Embed Stream Player
+                                AndroidView(
+                                    factory = { ctx ->
+                                        WebView(ctx).apply {
+                                            layoutParams = ViewGroup.LayoutParams(
+                                                ViewGroup.LayoutParams.MATCH_PARENT,
+                                                ViewGroup.LayoutParams.MATCH_PARENT
+                                            )
+                                            setBackgroundColor(android.graphics.Color.BLACK)
+                                            settings.apply {
+                                                javaScriptEnabled = true
+                                                domStorageEnabled = true
+                                                mediaPlaybackRequiresUserGesture = false
+                                                loadWithOverviewMode = true
+                                                useWideViewPort = true
+                                                mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                                                userAgentString = "Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36"
+                                            }
+                                            webChromeClient = WebChromeClient()
+                                            webViewClient = object : WebViewClient() {
+                                                override fun onPageFinished(view: WebView?, url: String?) {
+                                                    super.onPageFinished(view, url)
+                                                    isVideoBuffering = false
+                                                }
+                                                override fun onReceivedError(
+                                                    view: WebView?,
+                                                    errorCode: Int,
+                                                    description: String?,
+                                                    failingUrl: String?
+                                                ) {
+                                                    super.onReceivedError(view, errorCode, description, failingUrl)
+                                                    isVideoBuffering = false
+                                                    hasError = true
+                                                    errorMessage = description ?: "Playback stream error"
+                                                }
+                                            }
+
+                                            // If it's a direct m3u8 in web mode, load an embedded HTML5 video player wrapper
+                                            if (currentStream.cleanUrl.contains(".m3u8", ignoreCase = true) || currentStream.cleanUrl.contains(".mp4", ignoreCase = true)) {
+                                                val htmlData = """
+                                                    <!DOCTYPE html>
+                                                    <html>
+                                                    <head>
+                                                      <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+                                                      <style>
+                                                        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #000; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+                                                        video { width: 100%; height: 100%; object-fit: contain; }
+                                                      </style>
+                                                      <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+                                                    </head>
+                                                    <body>
+                                                      <video id="videoPlayer" controls autoplay playsinline></video>
+                                                      <script>
+                                                        var video = document.getElementById('videoPlayer');
+                                                        var streamUrl = '${currentStream.cleanUrl}';
+                                                        if (Hls.isSupported()) {
+                                                          var hls = new Hls();
+                                                          hls.loadSource(streamUrl);
+                                                          hls.attachMedia(video);
+                                                          hls.on(Hls.Events.MANIFEST_PARSED, function() {
+                                                            video.play();
+                                                          });
+                                                        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                                                          video.src = streamUrl;
+                                                          video.play();
+                                                        } else {
+                                                          video.src = streamUrl;
+                                                          video.play();
+                                                        }
+                                                      </script>
+                                                    </body>
+                                                    </html>
+                                                """.trimIndent()
+                                                loadDataWithBaseURL("https://mukulsports.live", htmlData, "text/html", "UTF-8", null)
+                                            } else {
+                                                loadUrl(currentStream.cleanUrl)
+                                            }
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            } else {
+                                // ExoPlayer Media3 Production Engine
+                                val exoPlayer = remember(currentStream.cleanUrl, reloadKey) {
+                                    val userAgent = currentStream.headers["User-Agent"]
+                                        ?: "Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36"
+
+                                    val httpDataSourceFactory = DefaultHttpDataSource.Factory()
+                                        .setUserAgent(userAgent)
+                                        .setAllowCrossProtocolRedirects(true)
+                                        .setConnectTimeoutMs(15000)
+                                        .setReadTimeoutMs(15000)
+
+                                    if (currentStream.headers.isNotEmpty()) {
+                                        httpDataSourceFactory.setDefaultRequestProperties(currentStream.headers)
+                                    }
+
+                                    val mediaSourceFactory = DefaultMediaSourceFactory(httpDataSourceFactory)
+
+                                    ExoPlayer.Builder(context)
+                                        .setMediaSourceFactory(mediaSourceFactory)
+                                        .build().apply {
+                                            val uri = Uri.parse(currentStream.cleanUrl)
+                                            val mediaItem = MediaItem.Builder()
+                                                .setUri(uri)
+                                                .build()
+                                            setMediaItem(mediaItem)
+                                            prepare()
+                                            playWhenReady = true
+                                        }
+                                }
+
+                                DisposableEffect(exoPlayer) {
+                                    val listener = object : Player.Listener {
+                                        override fun onPlaybackStateChanged(playbackState: Int) {
+                                            when (playbackState) {
+                                                Player.STATE_BUFFERING -> {
+                                                    isVideoBuffering = true
+                                                    hasError = false
+                                                }
+                                                Player.STATE_READY -> {
+                                                    isVideoBuffering = false
+                                                    hasError = false
+                                                }
+                                                Player.STATE_ENDED -> {
+                                                    isVideoBuffering = false
+                                                }
+                                                Player.STATE_IDLE -> {}
+                                            }
                                         }
 
-                                        val controller = MediaController(ctx)
-                                        controller.setAnchorView(this)
-                                        setMediaController(controller)
-
-                                        setOnPreparedListener { mp ->
-                                            isVideoLoading = false
-                                            hasError = false
-                                            mp.start()
-                                        }
-
-                                        setOnErrorListener { _, _, _ ->
-                                            isVideoLoading = false
+                                        override fun onPlayerError(error: PlaybackException) {
+                                            isVideoBuffering = false
                                             hasError = true
-                                            true
+                                            errorMessage = error.localizedMessage ?: "Stream source buffer error"
                                         }
                                     }
-                                },
-                                modifier = Modifier.fillMaxSize()
-                            )
+                                    exoPlayer.addListener(listener)
+
+                                    onDispose {
+                                        exoPlayer.removeListener(listener)
+                                        exoPlayer.stop()
+                                        exoPlayer.release()
+                                    }
+                                }
+
+                                AndroidView(
+                                    factory = { ctx ->
+                                        PlayerView(ctx).apply {
+                                            player = exoPlayer
+                                            useController = true
+                                            setShowNextButton(false)
+                                            setShowPreviousButton(false)
+                                            controllerAutoShow = true
+                                            controllerShowTimeoutMs = 3000
+                                            resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                                            layoutParams = ViewGroup.LayoutParams(
+                                                ViewGroup.LayoutParams.MATCH_PARENT,
+                                                ViewGroup.LayoutParams.MATCH_PARENT
+                                            )
+                                        }
+                                    },
+                                    update = { playerView ->
+                                        playerView.player = exoPlayer
+                                    },
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
                         }
                     }
 
-                    if (isVideoLoading && !hasError) {
+                    // Buffering Indicator
+                    if (isVideoBuffering && !hasError) {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.Center
                         ) {
                             CircularProgressIndicator(
                                 color = SportsCyan,
-                                modifier = Modifier.size(40.dp)
+                                modifier = Modifier.size(44.dp),
+                                strokeWidth = 3.dp
                             )
-                            Spacer(modifier = Modifier.height(8.dp))
+                            Spacer(modifier = Modifier.height(10.dp))
                             Text(
-                                text = "Buffering broadcast stream...",
-                                color = Color.White.copy(alpha = 0.8f),
-                                fontSize = 12.sp
+                                text = "Loading Mukul Sports Live Stream...",
+                                color = Color.White.copy(alpha = 0.9f),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium
                             )
                         }
                     }
 
+                    // Error & Fallback View
                     if (hasError) {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.Center,
-                            modifier = Modifier.padding(16.dp)
+                            modifier = Modifier
+                                .padding(16.dp)
+                                .fillMaxWidth()
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Info,
+                                imageVector = Icons.Default.Warning,
                                 contentDescription = null,
-                                tint = SportsOrange,
+                                tint = TrophyGold,
                                 modifier = Modifier.size(36.dp)
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                text = "Stream format or token requires external player (VLC / MX Player / Web) or VPN.",
+                                text = "Stream source temporarily unreachable.",
                                 color = Color.White,
                                 fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
                                 textAlign = TextAlign.Center
                             )
                             Spacer(modifier = Modifier.height(12.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
                                 Button(
                                     onClick = {
                                         hasError = false
-                                        isVideoLoading = true
+                                        isVideoBuffering = true
                                         reloadKey++
                                     }
                                 ) {
                                     Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
-                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
                                     Text("Retry")
                                 }
-                                Button(
-                                    onClick = {
-                                        openExternalPlayer(context, stream)
+
+                                if (!shouldUseWeb) {
+                                    OutlinedButton(
+                                        onClick = {
+                                            forceWebEmbedMode = true
+                                            hasError = false
+                                            isVideoBuffering = true
+                                            reloadKey++
+                                        }
+                                    ) {
+                                        Icon(Icons.Default.Language, contentDescription = null, modifier = Modifier.size(16.dp), tint = SportsCyan)
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("Web Player", color = SportsCyan)
                                     }
-                                ) {
-                                    Icon(Icons.Default.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Open in VLC / Player")
                                 }
                             }
                         }
                     }
                 }
 
-                // Bottom Stream Info & Action Bar
+                // Stream & Channel Switcher Bar
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
@@ -266,63 +448,81 @@ fun StreamPlayerDialog(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                            .padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        if (stream.drmKey != null) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(SportsOrange.copy(alpha = 0.2f))
-                                    .padding(8.dp)
-                            ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(
-                                    imageVector = Icons.Default.VpnKey,
+                                    imageVector = Icons.Default.LiveTv,
                                     contentDescription = null,
-                                    tint = SportsOrange,
+                                    tint = SportsCyan,
                                     modifier = Modifier.size(16.dp)
                                 )
-                                Spacer(modifier = Modifier.width(8.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = "DRM Protected Stream (Key: ${stream.drmKey.take(16)}...)",
+                                    text = "Available Broadcast Channels",
                                     color = Color.White,
-                                    fontSize = 11.sp
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
                                 )
                             }
+
+                            Text(
+                                text = "${allStreams.size} Server${if (allStreams.size > 1) "s" else ""}",
+                                color = Color.White.copy(alpha = 0.6f),
+                                fontSize = 11.sp
+                            )
                         }
 
+                        // Horizontal Server Selection Chips
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            OutlinedButton(
-                                onClick = {
-                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                    val clip = ClipData.newPlainText("Stream URL", stream.cleanUrl)
-                                    clipboard.setPrimaryClip(clip)
-                                    Toast.makeText(context, "Stream URL copied!", Toast.LENGTH_SHORT).show()
-                                },
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(14.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Copy Link", fontSize = 12.sp)
-                            }
-
-                            Spacer(modifier = Modifier.width(10.dp))
-
-                            Button(
-                                onClick = {
-                                    openExternalPlayer(context, stream)
-                                },
-                                modifier = Modifier.weight(1.2f)
-                            ) {
-                                Icon(Icons.Default.OpenInNew, contentDescription = null, modifier = Modifier.size(14.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("External Player", fontSize = 12.sp)
+                            allStreams.forEach { stream ->
+                                val isSelected = stream.cleanUrl == currentStream.cleanUrl
+                                Surface(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .clickable {
+                                            if (!isSelected) {
+                                                forceWebEmbedMode = false
+                                                isVideoBuffering = true
+                                                hasError = false
+                                                onSelectStream(stream)
+                                            }
+                                        },
+                                    color = if (isSelected) SportsCyan else Color.White.copy(alpha = 0.1f),
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                    ) {
+                                        if (isSelected) {
+                                            Icon(
+                                                imageVector = Icons.Default.PlayArrow,
+                                                contentDescription = null,
+                                                tint = Color.Black,
+                                                modifier = Modifier.size(12.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                        }
+                                        Text(
+                                            text = stream.channelName,
+                                            color = if (isSelected) Color.Black else Color.White,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                            fontSize = 11.sp
+                                        )
+                                    }
+                                }
                             }
                         }
                     }

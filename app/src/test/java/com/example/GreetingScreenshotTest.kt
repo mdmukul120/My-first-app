@@ -37,8 +37,9 @@ class GreetingScreenshotTest {
       teamBName = "Barcelona",
       teamBFlag = "",
       startTimeRaw = "01/09/2026 11:00:00 PM",
+      startEpochMs = System.currentTimeMillis() - 1000 * 60 * 30, // 30 mins into match
       streams = listOf(
-        StreamItem("STREAM TV + HD", "http://example.com/stream.m3u8", "http://example.com/stream.m3u8", emptyMap())
+        StreamItem("STREAM TV + HD", "http://example.com/stream.m3u8", "http://example.com/stream.m3u8")
       ),
       isFavorite = true
     )
@@ -47,9 +48,9 @@ class GreetingScreenshotTest {
       MyApplicationTheme {
         MatchCard(
           match = sampleMatch,
-          onCardClick = {},
-          onToggleFavorite = {},
-          onQuickWatchClick = {}
+          currentEpochMs = System.currentTimeMillis(),
+          onClick = {},
+          onToggleFavorite = {}
         )
       }
     }

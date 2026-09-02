@@ -1,13 +1,12 @@
 <resources>
-    <string name="app_name">Live Sports</string>
-    <string name="tab_live">Live</string>
-    <string name="tab_upcoming">Upcoming</string>
-    <string name="tab_ended">Ended</string>
-    <string name="tab_favorites">Favorites</string>
+    <string name="app_name">Mukul Sports</string>
+    <string name="nav_live_sports">Live Sports</string>
+    <string name="nav_tapmad">Tapmad BD</string>
+    <string name="nav_live_tv">Live TV</string>
+    <string name="nav_highlights">Highlights</string>
+    <string name="nav_saved">Watchlist</string>
     <string name="all_sports">All Sports</string>
-    <string name="search_matches">Search matches, teams, leagues...</string>
-    <string name="no_matches_found">No matches found</string>
-    <string name="watch_stream">Watch Stream</string>
-    <string name="available_streams">Available Streams</string>
-    <string name="match_details">Match Details</string>
+    <string name="search_hint">Search matches, channels, highlights...</string>
+    <string name="starts_in">Starts in</string>
+    <string name="watch_now">Watch Now</string>
 </resources>

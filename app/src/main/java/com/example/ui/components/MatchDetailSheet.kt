@@ -1,15 +1,11 @@
 package com.example.ui.components
 
-import android.content.ClipData
-import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.provider.CalendarContract
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,8 +25,6 @@ import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Tv
@@ -200,11 +194,10 @@ fun MatchDetailSheet(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            TeamColumn(
+                            TeamColumnDetail(
                                 name = match.teamAName,
                                 flagUrl = match.teamAFlag,
-                                modifier = Modifier.weight(1f),
-                                alignment = Alignment.CenterHorizontally
+                                modifier = Modifier.weight(1f)
                             )
 
                             Column(
@@ -219,11 +212,10 @@ fun MatchDetailSheet(
                                 )
                             }
 
-                            TeamColumn(
+                            TeamColumnDetail(
                                 name = match.teamBName,
                                 flagUrl = match.teamBFlag,
-                                modifier = Modifier.weight(1f),
-                                alignment = Alignment.CenterHorizontally
+                                modifier = Modifier.weight(1f)
                             )
                         }
                     }
@@ -312,7 +304,7 @@ fun MatchDetailSheet(
                         )
                     ) {
                         Text(
-                            text = "No live broadcast streams currently linked for this match. Check back closer to start time!",
+                            text = "No live broadcast channels currently linked for this match. Check back closer to start time!",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(16.dp),
@@ -325,16 +317,7 @@ fun MatchDetailSheet(
                     StreamChannelCard(
                         stream = stream,
                         isLive = isLive,
-                        onPlay = { onSelectStreamForPlayback(stream) },
-                        onCopy = {
-                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                            val clip = ClipData.newPlainText("Stream URL", stream.cleanUrl)
-                            clipboard.setPrimaryClip(clip)
-                            Toast.makeText(context, "Stream URL copied to clipboard!", Toast.LENGTH_SHORT).show()
-                        },
-                        onOpenExternal = {
-                            openExternalPlayer(context, stream)
-                        }
+                        onPlay = { onSelectStreamForPlayback(stream) }
                     )
                 }
             }
@@ -350,9 +333,7 @@ fun MatchDetailSheet(
 fun StreamChannelCard(
     stream: StreamItem,
     isLive: Boolean,
-    onPlay: () -> Unit,
-    onCopy: () -> Unit,
-    onOpenExternal: () -> Unit
+    onPlay: () -> Unit
 ) {
     Card(
         modifier = Modifier
@@ -367,155 +348,167 @@ fun StreamChannelCard(
             MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
         )
     ) {
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(14.dp)
+                .padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = stream.channelName,
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stream.channelName,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
 
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        modifier = Modifier.padding(top = 4.dp)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.padding(top = 4.dp)
+                ) {
+                    val quality = getDetailQualityTag(stream.channelName)
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.8f)
                     ) {
-                        // Quality Tag
-                        val quality = getQualityTag(stream.channelName)
+                        Text(
+                            text = quality,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+
+                    if (stream.drmKey != null) {
                         Surface(
                             shape = RoundedCornerShape(6.dp),
-                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.8f)
+                            color = SportsOrange.copy(alpha = 0.15f)
                         ) {
-                            Text(
-                                text = quality,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                            )
-                        }
-
-                        if (stream.drmKey != null) {
-                            Surface(
-                                shape = RoundedCornerShape(6.dp),
-                                color = SportsOrange.copy(alpha = 0.15f)
                             ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.VpnKey,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(10.dp),
-                                        tint = SportsOrange
-                                    )
-                                    Spacer(modifier = Modifier.width(2.dp))
-                                    Text(
-                                        text = "DRM",
-                                        color = SportsOrange,
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
+                                Icon(
+                                    imageVector = Icons.Default.VpnKey,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(10.dp),
+                                    tint = SportsOrange
+                                )
+                                Spacer(modifier = Modifier.width(2.dp))
+                                Text(
+                                    text = "DRM",
+                                    color = SportsOrange,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
                             }
                         }
                     }
                 }
-
-                // Play Button
-                Button(
-                    onClick = onPlay,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (isLive) LiveRed else MaterialTheme.colorScheme.primary
-                    ),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.testTag("play_stream_btn_${stream.channelName.lowercase().replace(" ", "_")}")
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.PlayArrow,
-                        contentDescription = "Play",
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = "Watch",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp
-                    )
-                }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Action links: Copy URL & External Player
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically
+            // In-App Play Button
+            Button(
+                onClick = onPlay,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (isLive) LiveRed else MaterialTheme.colorScheme.primary
+                ),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.testTag("play_stream_btn_${stream.channelName.lowercase().replace(" ", "_")}")
             ) {
-                Row(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable { onCopy() }
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.ContentCopy,
-                        contentDescription = "Copy link",
-                        modifier = Modifier.size(13.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = "Copy Link",
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(12.dp))
-
-                Row(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable { onOpenExternal() }
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.OpenInNew,
-                        contentDescription = "Open player",
-                        modifier = Modifier.size(13.dp),
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = "External Player",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
+                Icon(
+                    imageVector = Icons.Default.PlayArrow,
+                    contentDescription = "Watch",
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = "Watch",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp
+                )
             }
         }
     }
 }
 
-fun getQualityTag(channelName: String): String {
+@Composable
+private fun TeamColumnDetail(
+    name: String,
+    flagUrl: String,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            modifier = Modifier
+                .size(54.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.surface)
+                .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f), CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            if (flagUrl.isNotBlank()) {
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(flagUrl)
+                        .crossfade(true)
+                        .build(),
+                    contentDescription = name,
+                    modifier = Modifier
+                        .size(42.dp)
+                        .clip(CircleShape),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Text(
+                    text = name.take(2).uppercase(),
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(6.dp))
+
+        Text(
+            text = name,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
+@Composable
+private fun StatusBadge(status: MatchStatus, startTime: String) {
+    val isLive = status == MatchStatus.LIVE
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = if (isLive) LiveRed.copy(alpha = 0.15f) else TrophyGold.copy(alpha = 0.15f)
+    ) {
+        Text(
+            text = if (isLive) "● LIVE BROADCAST" else "UPCOMING FIXTURE",
+            color = if (isLive) LiveRed else TrophyGold,
+            fontWeight = FontWeight.Bold,
+            fontSize = 12.sp,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+        )
+    }
+}
+
+private fun getDetailQualityTag(channelName: String): String {
     val upper = channelName.uppercase()
     return when {
         upper.contains("4K") || upper.contains("UHD") -> "4K UHD"
@@ -531,7 +524,7 @@ fun shareMatchDetails(context: Context, match: MatchItem) {
         action = Intent.ACTION_SEND
         putExtra(
             Intent.EXTRA_TEXT,
-            "🏆 ${match.tournamentName}\n⚽ ${match.matchTitle}\n⏰ Time: ${match.startTimeRaw}\n📺 ${match.streams.size} Live Stream Channels available on Live Sports App!"
+            "🏆 ${match.tournamentName}\n⚽ ${match.matchTitle}\n⏰ Time: ${match.startTimeRaw}\n📺 Watch live on Mukul Sports!"
         )
         type = "text/plain"
     }
@@ -544,26 +537,9 @@ fun addMatchToCalendar(context: Context, match: MatchItem) {
         val intent = Intent(Intent.ACTION_INSERT)
             .setData(CalendarContract.Events.CONTENT_URI)
             .putExtra(CalendarContract.Events.TITLE, "${match.matchTitle} - ${match.tournamentName}")
-            .putExtra(CalendarContract.Events.DESCRIPTION, "Live Sports match broadcast: ${match.matchTitle}")
+            .putExtra(CalendarContract.Events.DESCRIPTION, "Mukul Sports broadcast: ${match.matchTitle}")
         context.startActivity(intent)
     } catch (e: Exception) {
         Toast.makeText(context, "Cannot open calendar app", Toast.LENGTH_SHORT).show()
-    }
-}
-
-fun openExternalPlayer(context: Context, stream: StreamItem) {
-    try {
-        val intent = Intent(Intent.ACTION_VIEW).apply {
-            setDataAndType(Uri.parse(stream.cleanUrl), "video/*")
-        }
-        val chooser = Intent.createChooser(intent, "Open with Media Player (VLC, MX Player, etc.)")
-        context.startActivity(chooser)
-    } catch (e: Exception) {
-        try {
-            val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(stream.cleanUrl))
-            context.startActivity(browserIntent)
-        } catch (ex: Exception) {
-            Toast.makeText(context, "Could not open player: ${ex.message}", Toast.LENGTH_SHORT).show()
-        }
     }
 }

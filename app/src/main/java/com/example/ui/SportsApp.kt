@@ -1,6 +1,7 @@
 package com.example.ui
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Image
@@ -12,15 +13,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -29,13 +26,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.LiveTv
+import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SportsSoccer
+import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material3.Badge
-import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -55,7 +52,6 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -69,21 +65,26 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.R
-import com.example.data.model.MatchStatus
+import com.example.data.model.ChannelItem
+import com.example.data.model.HighlightItem
+import com.example.data.model.HighlightServer
+import com.example.data.model.MatchItem
 import com.example.ui.components.CategoryFilterRow
-import com.example.ui.components.CommunityDialog
+import com.example.ui.components.ChannelCard
+import com.example.ui.components.HighlightCard
 import com.example.ui.components.MatchCard
 import com.example.ui.components.MatchDetailSheet
+import com.example.ui.components.MukulBottomNavBar
+import com.example.ui.components.MukulSportsSplash
 import com.example.ui.components.StreamPlayerDialog
 import com.example.ui.theme.LiveRed
-import com.example.ui.theme.PitchGreen
 import com.example.ui.theme.SportsCyan
 import com.example.ui.theme.SportsOrange
 import com.example.ui.theme.TrophyGold
+import com.example.ui.viewmodel.BottomNavTab
+import com.example.ui.viewmodel.SportsSubTab
 import com.example.ui.viewmodel.SportsUiState
 import com.example.ui.viewmodel.SportsViewModel
-import com.example.ui.viewmodel.StatusTab
-import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -92,239 +93,344 @@ fun SportsApp(
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    val scope = rememberCoroutineScope()
     val detailSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    Scaffold(
-        modifier = modifier.fillMaxSize(),
-        topBar = {
-            SportsTopBar(
-                uiState = uiState,
-                onSearchToggle = { viewModel.toggleSearch(!uiState.isSearchActive) },
-                onSearchQueryChange = { viewModel.setSearchQuery(it) },
-                onRefresh = { viewModel.loadSportsData(isRefresh = true) },
-                onOpenCommunity = { viewModel.setCommunityDialogOpen(true) }
-            )
-        },
-        containerColor = MaterialTheme.colorScheme.background
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-        ) {
-            // Status Tabs (LIVE, UPCOMING, ENDED, FAVORITES)
-            StatusTabsRow(
-                selectedTab = uiState.selectedTab,
-                liveCount = uiState.liveCount,
-                upcomingCount = uiState.upcomingCount,
-                endedCount = uiState.endedCount,
-                favoriteCount = uiState.favoriteCount,
-                onTabSelected = { viewModel.selectTab(it) }
-            )
-
-            // Category Filter Row
-            CategoryFilterRow(
-                categories = uiState.categories,
-                selectedCategory = uiState.selectedCategory,
-                onCategorySelected = { viewModel.selectCategory(it) }
-            )
-
-            // Content Area
+    if (uiState.isInitialSplash) {
+        MukulSportsSplash()
+    } else {
+        Scaffold(
+            modifier = modifier.fillMaxSize(),
+            topBar = {
+                MukulTopBar(
+                    uiState = uiState,
+                    onSearchToggle = { viewModel.toggleSearch(!uiState.isSearchActive) },
+                    onSearchQueryChange = { viewModel.setSearchQuery(it) },
+                    onRefresh = { viewModel.loadAllSportsData(isRefresh = true) }
+                )
+            },
+            bottomBar = {
+                MukulBottomNavBar(
+                    selectedTab = uiState.currentTab,
+                    onTabSelected = { viewModel.selectBottomTab(it) },
+                    liveMatchCount = uiState.liveCount
+                )
+            },
+            containerColor = MaterialTheme.colorScheme.background
+        ) { innerPadding ->
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .weight(1f)
+                    .padding(innerPadding)
             ) {
-                when {
-                    uiState.isLoading && !uiState.isRefreshing -> {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center
-                            ) {
-                                CircularProgressIndicator(
-                                    color = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(48.dp)
-                                )
-                                Spacer(modifier = Modifier.height(16.dp))
-                                Text(
-                                    text = "Loading sports matches & streams...",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    }
-
-                    uiState.errorMessage != null && uiState.allMatches.isEmpty() -> {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(24.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Warning,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.error,
-                                    modifier = Modifier.size(48.dp)
-                                )
-                                Spacer(modifier = Modifier.height(12.dp))
-                                Text(
-                                    text = "Could not connect to sports feed",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Text(
-                                    text = uiState.errorMessage ?: "Please verify your internet connection.",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    textAlign = TextAlign.Center
-                                )
-                                Spacer(modifier = Modifier.height(16.dp))
-                                Button(
-                                    onClick = { viewModel.loadSportsData() },
-                                    shape = RoundedCornerShape(12.dp),
-                                    modifier = Modifier.testTag("retry_button")
-                                ) {
-                                    Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text("Retry Connection")
-                                }
-                            }
-                        }
-                    }
-
-                    else -> {
-                        val matches = uiState.filteredMatches
-                        if (matches.isEmpty()) {
-                            EmptyMatchesState(
-                                selectedTab = uiState.selectedTab,
-                                selectedCategory = uiState.selectedCategory,
-                                searchQuery = uiState.searchQuery,
-                                onResetFilter = {
-                                    viewModel.selectCategory("ALL")
-                                    viewModel.setSearchQuery("")
-                                }
-                            )
-                        } else {
-                            LazyColumn(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .testTag("matches_list"),
-                                contentPadding = PaddingValues(
-                                    start = 16.dp,
-                                    end = 16.dp,
-                                    top = 8.dp,
-                                    bottom = 24.dp
-                                ),
-                                verticalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                // Match count info banner
-                                item {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            text = "${matches.size} Match${if (matches.size > 1) "es" else ""}",
-                                            style = MaterialTheme.typography.labelMedium,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            fontWeight = FontWeight.Bold
-                                        )
-
-                                        if (uiState.lastUpdateTime.isNotBlank()) {
-                                            Text(
-                                                text = "Synced ${uiState.lastUpdateTime}",
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                                            )
-                                        }
-                                    }
-                                }
-
-                                items(
-                                    items = matches,
-                                    key = { it.id }
-                                ) { match ->
-                                    MatchCard(
-                                        match = match,
-                                        onCardClick = { viewModel.openMatchDetails(match) },
-                                        onToggleFavorite = { viewModel.toggleFavorite(match) },
-                                        onQuickWatchClick = if (match.streams.isNotEmpty()) {
-                                            {
-                                                if (match.streams.size == 1) {
-                                                    viewModel.playStream(match, match.streams[0])
-                                                } else {
-                                                    viewModel.openMatchDetails(match)
-                                                }
-                                            }
-                                        } else null
-                                    )
-                                }
-                            }
-                        }
+                Crossfade(targetState = uiState.currentTab, label = "tab_content") { tab ->
+                    when (tab) {
+                        BottomNavTab.LIVE_SPORTS -> LiveSportsScreen(
+                            uiState = uiState,
+                            viewModel = viewModel
+                        )
+                        BottomNavTab.TAPMAD -> TapmadScreen(
+                            uiState = uiState,
+                            viewModel = viewModel
+                        )
+                        BottomNavTab.LIVE_TV -> LiveTvScreen(
+                            uiState = uiState,
+                            viewModel = viewModel
+                        )
+                        BottomNavTab.HIGHLIGHTS -> HighlightsScreen(
+                            uiState = uiState,
+                            viewModel = viewModel
+                        )
+                        BottomNavTab.SAVED -> SavedScreen(
+                            uiState = uiState,
+                            viewModel = viewModel
+                        )
                     }
                 }
             }
         }
-    }
 
-    // Match Details BottomSheet
-    uiState.selectedMatchForDetails?.let { match ->
-        MatchDetailSheet(
-            match = match,
-            sheetState = detailSheetState,
-            onDismiss = { viewModel.closeMatchDetails() },
-            onToggleFavorite = { viewModel.toggleFavorite(match) },
-            onSelectStreamForPlayback = { stream ->
-                viewModel.playStream(match, stream)
-            }
-        )
-    }
+        // Match Details BottomSheet
+        uiState.selectedMatchForDetails?.let { match ->
+            MatchDetailSheet(
+                match = match,
+                sheetState = detailSheetState,
+                onDismiss = { viewModel.closeMatchDetails() },
+                onToggleFavorite = { viewModel.toggleFavoriteMatch(match) },
+                onSelectStreamForPlayback = { stream ->
+                    viewModel.closeMatchDetails()
+                    viewModel.playMatchStream(match, stream)
+                }
+            )
+        }
 
-    // Video Stream Playback Dialog
-    if (uiState.activeMatchForPlayback != null && uiState.selectedStreamForPlayback != null) {
-        StreamPlayerDialog(
-            match = uiState.activeMatchForPlayback!!,
-            stream = uiState.selectedStreamForPlayback!!,
-            onDismiss = { viewModel.closePlayback() }
-        )
-    }
-
-    // Community Info Dialog
-    if (uiState.isCommunityDialogOpen) {
-        CommunityDialog(
-            feedName = uiState.feedTitle,
-            owner = uiState.owner,
-            telegramUrl = uiState.telegramChannel,
-            lastUpdate = uiState.lastUpdateTime,
-            totalMatches = uiState.totalMatches,
-            liveMatches = uiState.liveCount,
-            onDismiss = { viewModel.setCommunityDialogOpen(false) }
-        )
+        // Embedded In-App Video Player Dialog
+        if (uiState.isPlayerOpen && uiState.currentPlayingStream != null) {
+            StreamPlayerDialog(
+                title = uiState.playerTitle,
+                subtitle = uiState.playerSubtitle,
+                currentStream = uiState.currentPlayingStream!!,
+                allStreams = uiState.playerStreamsList,
+                onSelectStream = { stream ->
+                    viewModel.switchPlayingStream(stream)
+                },
+                onDismiss = { viewModel.closePlayer() }
+            )
+        }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SportsTopBar(
+fun LiveSportsScreen(
+    uiState: SportsUiState,
+    viewModel: SportsViewModel
+) {
+    Column(modifier = Modifier.fillMaxSize()) {
+        // SubTabs: All, Live Now, Upcoming
+        PrimaryTabRow(
+            selectedTabIndex = uiState.sportsSubTab.ordinal,
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.testTag("sports_sub_tabs")
+        ) {
+            SportsSubTab.values().forEach { subTab ->
+                val isSelected = uiState.sportsSubTab == subTab
+                val label = when (subTab) {
+                    SportsSubTab.ALL -> "All Matches"
+                    SportsSubTab.LIVE_NOW -> "Live Now (${uiState.liveCount})"
+                    SportsSubTab.UPCOMING -> "Upcoming (${uiState.upcomingCount})"
+                }
+                Tab(
+                    selected = isSelected,
+                    onClick = { viewModel.selectSportsSubTab(subTab) },
+                    text = {
+                        Text(
+                            text = label,
+                            fontSize = 12.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            color = if (isSelected) {
+                                if (subTab == SportsSubTab.LIVE_NOW) LiveRed else MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            }
+                        )
+                    }
+                )
+            }
+        }
+
+        // Category Filter
+        CategoryFilterRow(
+            categories = uiState.sportsCategories,
+            selectedCategory = uiState.selectedCategory,
+            onCategorySelected = { viewModel.selectCategory(it) }
+        )
+
+        // Matches List
+        val matches = uiState.filteredLiveMatches
+        if (uiState.isLoading && !uiState.isRefreshing) {
+            LoadingSpinner()
+        } else if (matches.isEmpty()) {
+            EmptyView(
+                icon = Icons.Default.SportsSoccer,
+                title = "No Live or Upcoming Matches",
+                desc = "No active fixtures found in this category right now. Past ended matches have been hidden.",
+                actionLabel = "Show All Categories",
+                onAction = { viewModel.selectCategory("ALL") }
+            )
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .testTag("live_matches_list"),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(matches, key = { it.id }) { match ->
+                    MatchCard(
+                        match = match,
+                        currentEpochMs = uiState.currentEpochMs,
+                        onClick = { viewModel.openMatchDetails(match) },
+                        onToggleFavorite = { viewModel.toggleFavoriteMatch(match) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun TapmadScreen(
+    uiState: SportsUiState,
+    viewModel: SportsViewModel
+) {
+    Column(modifier = Modifier.fillMaxSize()) {
+        CategoryFilterRow(
+            categories = uiState.tapmadCategories,
+            selectedCategory = uiState.selectedTapmadCategory,
+            onCategorySelected = { viewModel.selectTapmadCategory(it) }
+        )
+
+        val channels = uiState.filteredTapmadChannels
+        if (uiState.isLoading && !uiState.isRefreshing) {
+            LoadingSpinner()
+        } else if (channels.isEmpty()) {
+            EmptyView(
+                icon = Icons.Default.LiveTv,
+                title = "No Tapmad Channels Found",
+                desc = "Could not find any active Tapmad sports channels for the current search.",
+                actionLabel = "Clear Filter",
+                onAction = { viewModel.selectTapmadCategory("ALL") }
+            )
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .testTag("tapmad_channel_list"),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                items(channels, key = { it.id }) { channel ->
+                    ChannelCard(
+                        channel = channel,
+                        onClick = { viewModel.playChannel(channel) },
+                        onToggleFavorite = { viewModel.toggleFavoriteChannel(channel) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun LiveTvScreen(
+    uiState: SportsUiState,
+    viewModel: SportsViewModel
+) {
+    Column(modifier = Modifier.fillMaxSize()) {
+        CategoryFilterRow(
+            categories = uiState.liveTvCategories,
+            selectedCategory = uiState.selectedLiveTvCategory,
+            onCategorySelected = { viewModel.selectLiveTvCategory(it) }
+        )
+
+        val channels = uiState.filteredLiveTvChannels
+        if (uiState.isLoading && !uiState.isRefreshing) {
+            LoadingSpinner()
+        } else if (channels.isEmpty()) {
+            EmptyView(
+                icon = Icons.Default.Tv,
+                title = "No TV Channels Found",
+                desc = "No channels match your current selection.",
+                actionLabel = "Show All TV",
+                onAction = { viewModel.selectLiveTvCategory("ALL") }
+            )
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .testTag("live_tv_channel_list"),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                items(channels, key = { it.id }) { channel ->
+                    ChannelCard(
+                        channel = channel,
+                        onClick = { viewModel.playChannel(channel) },
+                        onToggleFavorite = { viewModel.toggleFavoriteChannel(channel) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun HighlightsScreen(
+    uiState: SportsUiState,
+    viewModel: SportsViewModel
+) {
+    Column(modifier = Modifier.fillMaxSize()) {
+        CategoryFilterRow(
+            categories = uiState.highlightCategories,
+            selectedCategory = uiState.selectedHighlightCategory,
+            onCategorySelected = { viewModel.selectHighlightCategory(it) }
+        )
+
+        val list = uiState.filteredHighlights
+        if (uiState.isLoading && !uiState.isRefreshing) {
+            LoadingSpinner()
+        } else if (list.isEmpty()) {
+            EmptyView(
+                icon = Icons.Default.Movie,
+                title = "No Highlights Found",
+                desc = "Match replays will appear here once loaded.",
+                actionLabel = "Show All",
+                onAction = { viewModel.selectHighlightCategory("ALL") }
+            )
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .testTag("highlights_list"),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(list, key = { it.id }) { highlight ->
+                    HighlightCard(
+                        highlight = highlight,
+                        onSelectServer = { server ->
+                            viewModel.playHighlight(highlight, server)
+                        },
+                        onToggleFavorite = { viewModel.toggleFavoriteHighlight(highlight) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun SavedScreen(
+    uiState: SportsUiState,
+    viewModel: SportsViewModel
+) {
+    val favorites = uiState.favoriteMatches
+    if (favorites.isEmpty()) {
+        EmptyView(
+            icon = Icons.Default.Bookmark,
+            title = "Watchlist is Empty",
+            desc = "Bookmark your favorite live matches, Tapmad streams, or TV channels to access them quickly here.",
+            actionLabel = null,
+            onAction = {}
+        )
+    } else {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .testTag("watchlist_list"),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            items(favorites, key = { it.id }) { match ->
+                MatchCard(
+                    match = match,
+                    currentEpochMs = uiState.currentEpochMs,
+                    onClick = { viewModel.openMatchDetails(match) },
+                    onToggleFavorite = { viewModel.toggleFavoriteMatch(match) }
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun MukulTopBar(
     uiState: SportsUiState,
     onSearchToggle: () -> Unit,
     onSearchQueryChange: (String) -> Unit,
-    onRefresh: () -> Unit,
-    onOpenCommunity: () -> Unit
+    onRefresh: () -> Unit
 ) {
     TopAppBar(
         title = {
@@ -332,7 +438,7 @@ fun SportsTopBar(
                 TextField(
                     value = uiState.searchQuery,
                     onValueChange = onSearchQueryChange,
-                    placeholder = { Text("Search match, team, league...") },
+                    placeholder = { Text("Search matches, channels, teams...") },
                     singleLine = true,
                     colors = TextFieldDefaults.colors(
                         focusedContainerColor = Color.Transparent,
@@ -355,32 +461,34 @@ fun SportsTopBar(
                 Row(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(
+                    Image(
+                        painter = painterResource(id = R.drawable.mukul_sports_logo_1788310180221),
+                        contentDescription = "Mukul Sports",
                         modifier = Modifier
-                            .size(34.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primaryContainer),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "⚡",
-                            fontSize = 18.sp
-                        )
-                    }
+                            .size(36.dp)
+                            .clip(CircleShape),
+                        contentScale = ContentScale.Crop
+                    )
                     Spacer(modifier = Modifier.width(10.dp))
                     Column {
                         Text(
-                            text = "Live Sports",
+                            text = "Mukul Sports",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Black,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         if (uiState.liveCount > 0) {
                             Text(
-                                text = "🔴 ${uiState.liveCount} Matches Streaming",
+                                text = "🔴 ${uiState.liveCount} Live Matches",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = LiveRed,
                                 fontWeight = FontWeight.Bold
+                            )
+                        } else {
+                            Text(
+                                text = "Live Sports & IPTV",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
@@ -417,96 +525,41 @@ fun SportsTopBar(
                     )
                 }
             }
-
-            IconButton(
-                onClick = onOpenCommunity,
-                modifier = Modifier.testTag("community_info_btn")
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Info,
-                    contentDescription = "Feed Info",
-                    tint = MaterialTheme.colorScheme.onSurface
-                )
-            }
         },
         colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.background
+            containerColor = MaterialTheme.colorScheme.surface
         )
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun StatusTabsRow(
-    selectedTab: StatusTab,
-    liveCount: Int,
-    upcomingCount: Int,
-    endedCount: Int,
-    favoriteCount: Int,
-    onTabSelected: (StatusTab) -> Unit
-) {
-    PrimaryTabRow(
-        selectedTabIndex = selectedTab.ordinal,
-        containerColor = MaterialTheme.colorScheme.background,
-        contentColor = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.testTag("status_tabs_row")
+fun LoadingSpinner() {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
     ) {
-        StatusTab.values().forEach { tab ->
-            val isSelected = selectedTab == tab
-            val (title, count, badgeColor) = when (tab) {
-                StatusTab.LIVE -> Triple("LIVE", liveCount, LiveRed)
-                StatusTab.UPCOMING -> Triple("UPCOMING", upcomingCount, SportsOrange)
-                StatusTab.ENDED -> Triple("ENDED", endedCount, MaterialTheme.colorScheme.onSurfaceVariant)
-                StatusTab.FAVORITES -> Triple("SAVED", favoriteCount, TrophyGold)
-            }
-
-            Tab(
-                selected = isSelected,
-                onClick = { onTabSelected(tab) },
-                modifier = Modifier.testTag("tab_${tab.name.lowercase()}"),
-                text = {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        Text(
-                            text = title,
-                            fontWeight = if (isSelected) FontWeight.Black else FontWeight.SemiBold,
-                            fontSize = 12.sp,
-                            color = if (isSelected) {
-                                if (tab == StatusTab.LIVE) LiveRed else MaterialTheme.colorScheme.primary
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            }
-                        )
-                        if (count > 0) {
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Surface(
-                                shape = RoundedCornerShape(10.dp),
-                                color = if (isSelected) badgeColor.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant
-                            ) {
-                                Text(
-                                    text = "$count",
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (isSelected) badgeColor else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
-                                )
-                            }
-                        }
-                    }
-                }
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            CircularProgressIndicator(
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(44.dp)
+            )
+            Spacer(modifier = Modifier.height(14.dp))
+            Text(
+                text = "Loading sports feeds...",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }
 }
 
 @Composable
-fun EmptyMatchesState(
-    selectedTab: StatusTab,
-    selectedCategory: String,
-    searchQuery: String,
-    onResetFilter: () -> Unit
+fun EmptyView(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    desc: String,
+    actionLabel: String?,
+    onAction: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -519,14 +572,11 @@ fun EmptyMatchesState(
             modifier = Modifier
                 .size(64.dp)
                 .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)),
+                .background(MaterialTheme.colorScheme.surfaceVariant),
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = when (selectedTab) {
-                    StatusTab.FAVORITES -> Icons.Default.Bookmark
-                    else -> Icons.Default.SportsSoccer
-                },
+                imageVector = icon,
                 contentDescription = null,
                 modifier = Modifier.size(32.dp),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
@@ -534,21 +584,6 @@ fun EmptyMatchesState(
         }
 
         Spacer(modifier = Modifier.height(16.dp))
-
-        val title = when {
-            searchQuery.isNotBlank() -> "No matching matches found"
-            selectedTab == StatusTab.FAVORITES -> "No saved matches yet"
-            selectedTab == StatusTab.LIVE -> "No live matches currently"
-            selectedTab == StatusTab.UPCOMING -> "No upcoming matches in this category"
-            else -> "No matches found"
-        }
-
-        val desc = when {
-            searchQuery.isNotBlank() -> "Try checking your spelling or search for another team or tournament."
-            selectedTab == StatusTab.FAVORITES -> "Tap the bookmark icon on any match card to save it to your watchlist for quick access."
-            selectedTab == StatusTab.LIVE -> "There are no matches currently broadcasting in $selectedCategory. Check the Upcoming tab for scheduled fixtures!"
-            else -> "Check back soon for new sports events and live broadcast schedules."
-        }
 
         Text(
             text = title,
@@ -567,13 +602,13 @@ fun EmptyMatchesState(
             textAlign = TextAlign.Center
         )
 
-        if (searchQuery.isNotBlank() || !selectedCategory.equals("ALL", ignoreCase = true)) {
+        if (actionLabel != null) {
             Spacer(modifier = Modifier.height(16.dp))
             Button(
-                onClick = onResetFilter,
+                onClick = onAction,
                 shape = RoundedCornerShape(12.dp)
             ) {
-                Text("Show All Sports")
+                Text(actionLabel)
             }
         }
     }
